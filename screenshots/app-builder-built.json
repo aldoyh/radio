@@ -1,0 +1,43 @@
+{
+  "url": "http://127.0.0.1:8081/",
+  "viewports": {
+    "desktop": {
+      "width": 1280,
+      "height": 800,
+      "status": 200,
+      "title": "إذاعة البحرين · Virtual Studio",
+      "hasCanvas": true,
+      "bodyTextLen": 203,
+      "bodyTextHash": "ddb07ac7a03612ef8855c2ff4da8e97c28015b78141e33ca86e8534584913071",
+      "bodyTextPrefix": "إذاعة البحرين RADIO BAHRAIN · VIRTUAL STUDIO STANDBY 06:26:51 ال",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-built.png"
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "status": 200,
+      "title": "إذاعة البحرين · Virtual Studio",
+      "hasCanvas": true,
+      "bodyTextLen": 203,
+      "bodyTextHash": "27266ef7d5c2c7b396a038cdf7a0cf8e433bf7ca965db93f2b21e56b277874f8",
+      "bodyTextPrefix": "إذاعة البحرين RADIO BAHRAIN · VIRTUAL STUDIO STANDBY 06:26:54 ال",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-built-mobile.png"
+    }
+  },
+  "brandWarnings": [
+    "BRAND WARNING: this looks like a game/canvas app but src/lib/og/site.json is missing \"type\": \"x:game\". X uses og:type=x:game to present the unfurl as a game card — set it in /workspace/src/lib/og/site.json per /workspace/.grok/skills/og/SKILL.md. Do not invent x:type or overload twitter:card as the game signal."
+  ],
+  "authWarnings": [],
+  "verdictFile": "/workspace/screenshots/app-builder-built.json",
+  "divergesFromBaseline": true,
+  "baselineReasons": [
+    "desktop: body text replaced (similar length, page start changed)",
+    "mobile: body text replaced (similar length, page start changed)"
+  ]
+}

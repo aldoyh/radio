@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Wave Surfer Audio Visualizer Studio Pro</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;800&display=swap" rel="stylesheet">
+    
+    <!-- Icons (Phosphor) -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    
+    <!-- HLS for Radio Stream -->
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Outfit', 'sans-serif'],
+                    },
+                    colors: {
+                        cosmic: {
+                            base: '#050014',
+                            glow: '#2a0a4a'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #050014;
+            color: #ffffff;
+            overflow: hidden;
+            touch-action: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* Deep Space Starry Background */
+        .stars-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 0;
+            background-image: 
+                radial-gradient(circle at 50% 50%, rgba(42, 10, 74, 0.4) 0%, transparent 70%),
+                url("data:image/svg+xml,%3Csvg width='300' height='300' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='40' cy='20' r='1' fill='%23ffffff' fill-opacity='0.15'/%3E%3Ccircle cx='150' cy='80' r='1.5' fill='%23ffffff' fill-opacity='0.3'/%3E%3Ccircle cx='90' cy='160' r='0.8' fill='%23ffffff' fill-opacity='0.2'/%3E%3Ccircle cx='280' cy='190' r='1.2' fill='%23ffffff' fill-opacity='0.1'/%3E%3Ccircle cx='210' cy='110' r='1' fill='%23ffffff' fill-opacity='0.25'/%3E%3Ccircle cx='120' cy='280' r='1.5' fill='%23ffffff' fill-opacity='0.2'/%3E%3C/svg%3E");
+            background-size: cover, 200px 200px;
+            pointer-events: none;
+        }
+
+        /* Visualizer Canvas - Rendered behind UI */
+        #visualizer-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 5;
+            pointer-events: none;
+        }
+
+        /* Orbital Nodes (Top Arc) - Mimicking Reference Image */
+        .orbital-arc {
+            position: relative;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            gap: 1.5rem;
+            height: 80px;
+            margin-top: 4vh;
+            z-index: 20;
+        }
+
+        .arc-node {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ffffff;
+            cursor: pointer;
+            background: transparent;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            transform: translateY(0);
+        }
+
+        /* Arc curvature positioning */
+        .arc-node:nth-child(1), .arc-node:nth-child(5) { transform: translateY(-10px); }
+        .arc-node:nth-child(2), .arc-node:nth-child(4) { transform: translateY(-25px); }
+        .arc-node:nth-child(3) { transform: translateY(-35px); }
+
+        .arc-node i { font-size: 22px; }
+
+        .arc-node.active {
+            background: linear-gradient(135deg, #4f46e5, #d414c9);
+            border-color: transparent;
+            box-shadow: 0 0 25px rgba(212, 20, 201, 0.6);
+        }
+
+        /* Needle indicator for active node */
+        .arc-node.active::after {
+            content: '';
+            position: absolute;
+            bottom: -15px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 4px;
+            height: 4px;
+            background-color: #fff;
+            border-radius: 50%;
+            box-shadow: 0 0 8px #fff;
+        }
+
+        /* Central Power Orb */
+        .power-orb-container {
+            position: relative;
+            margin-top: 4vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 20;
+        }
+
+        .orb-outer-ring {
+            width: 280px;
+            height: 280px;
+            border-radius: 50%;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        /* Top Notch */
+        .orb-notch {
+            position: absolute;
+            top: -6px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 2px;
+            height: 12px;
+            background-color: rgba(255, 255, 255, 0.5);
+            border-radius: 2px;
+        }
+
+        .power-orb {
+            width: 240px;
+            height: 240px;
+            border-radius: 50%;
+            background-image: linear-gradient(180deg, #3b28cc 0%, #d414c9 100%);
+            box-shadow: 
+                0 0 60px rgba(212, 20, 201, 0.4),
+                inset 0 -10px 40px rgba(0, 0, 0, 0.3),
+                inset 0 10px 40px rgba(255, 255, 255, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.3s ease;
+        }
+
+        .power-orb:active {
+            transform: scale(0.96);
+        }
+
+        .power-orb.is-playing {
+            box-shadow: 
+                0 0 100px rgba(212, 20, 201, 0.7),
+                inset 0 -10px 40px rgba(0, 0, 0, 0.3),
+                inset 0 10px 40px rgba(255, 255, 255, 0.3);
+            animation: pulseOrb 2s infinite alternate;
+        }
+
+        @keyframes pulseOrb {
+            0% { transform: scale(1); filter: brightness(1); }
+            100% { transform: scale(1.02); filter: brightness(1.1); }
+        }
+
+        .power-icon {
+            font-size: 80px;
+            color: #ffffff;
+            font-weight: 200;
+            filter: drop-shadow(0 0 10px rgba(255,255,255,0.4));
+            transition: all 0.3s ease;
+        }
+
+        .power-orb.is-playing .power-icon {
+            text-shadow: 0 0 20px #fff, 0 0 40px #d414c9;
+            filter: drop-shadow(0 0 15px #fff);
+        }
+
+        /* Title & Channel Selector below Orb */
+        .info-panel {
+            margin-top: 3rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 20;
+        }
+
+        .channel-selector {
+            display: inline-flex;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 9999px;
+            padding: 0.35rem;
+            margin-top: 1rem;
+        }
+
+        .channel-btn {
+            padding: 0.5rem 1.25rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #9ca3af;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+        }
+
+        .channel-btn.active {
+            background: linear-gradient(135deg, #3b28cc, #d414c9);
+            color: #ffffff;
+            box-shadow: 0 0 15px rgba(212, 20, 201, 0.4);
+        }
+
+        /* Bottom Dock */
+        .bottom-dock {
+            position: absolute;
+            bottom: 4vh;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1.25rem;
+            z-index: 20;
+        }
+
+        .dock-btn {
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ffffff;
+            cursor: pointer;
+            background: transparent;
+            transition: all 0.3s ease;
+            font-size: 20px;
+            position: relative;
+        }
+
+        .dock-btn:hover {
+            border-color: rgba(255, 255, 255, 0.8);
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .dock-btn.is-grid {
+            border: none;
+            background: linear-gradient(135deg, #4f46e5, #d414c9);
+            box-shadow: 0 0 20px rgba(212, 20, 201, 0.5);
+        }
+        
+        .dock-btn.is-grid::after {
+            content: '';
+            position: absolute;
+            bottom: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 4px;
+            height: 4px;
+            background-color: #fff;
+            border-radius: 50%;
+            box-shadow: 0 0 5px #fff;
+        }
+
+    </style>
+</head>
+<body class="h-screen w-screen relative select-none">
+    
+    <!-- Background Layers -->
+    <div class="stars-bg"></div>
+    <canvas id="visualizer-canvas"></canvas>
+
+    <main class="w-full h-full flex flex-col items-center pt-8">
+        
+        <!-- Top Orbital Arc (Mode Selectors) -->
+        <div class="orbital-arc">
+            <div class="arc-node" data-mode="particles" title="Particles">
+                <i class="ph ph-music-notes"></i>
+            </div>
+            <div class="arc-node" data-mode="cline" title="Cline Symmetrical">
+                <i class="ph ph-sun-horizon"></i>
+            </div>
+            <!-- Default Active Mode: Bars -->
+            <div class="arc-node active" data-mode="bars" title="Radial Bars">
+                <i class="ph ph-lightbulb"></i>
+            </div>
+            <div class="arc-node" data-mode="pulse" title="Pulse Core">
+                <i class="ph ph-moon-stars"></i>
+            </div>
+            <div class="arc-node" data-mode="nebula" title="Nebula Flow">
+                <i class="ph ph-campfire"></i>
+            </div>
+        </div>
+
+        <!-- Central Power Orb -->
+        <div class="power-orb-container" id="orb-wrapper">
+            <div class="orb-outer-ring">
+                <div class="orb-notch"></div>
+                <div class="power-orb" id="btn-power">
+                    <i class="ph ph-power power-icon"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- Title & Channel Selector Configured Underneath -->
+        <div class="info-panel text-center">
+            <h1 class="text-2xl font-semibold tracking-wider text-gray-100 drop-shadow-md">Wave Surfer Pro</h1>
+            <p id="stream-status" class="text-xs text-pink-400 mt-1 uppercase tracking-widest font-medium">Ready to Surf</p>
+            
+            <!-- Channel Configuration -->
+            <div class="channel-selector">
+                <div class="channel-btn active" data-url="https://5c7b683162943.streamlock.net/live/ngrp:radio-93-3_all/chunklist_w984020168_b981072.m3u8">
+                    البرنامج العام 93.3
+                </div>
+                <div class="channel-btn" data-url="https://5c7b683162943.streamlock.net/live/ngrp:radio-98-4_all/chunklist_w1027272218_b981072.m3u8">
+                    الشبابية 98.4
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Bottom Dock (Numbered Presets matching Reference) -->
+    <footer class="bottom-dock">
+        <div class="dock-btn is-grid" title="Theme Menu">
+            <i class="ph ph-squares-four"></i>
+        </div>
+        <div class="dock-btn font-light" title="Preset 1">1</div>
+        <div class="dock-btn font-light" title="Preset 2">2</div>
+        <div class="dock-btn font-light" title="Preset 3">3</div>
+    </footer>
+
+    <!-- Native Audio Element (Hidden) -->
+    <audio id="audio-engine" crossorigin="anonymous" preload="auto" class="hidden"></audio>
+
+    <script>
+        // Audio & Engine State
+        let audioCtx, analyser, sourceNode, gainNode, hls;
+        let isPlaying = false;
+        let currentMode = 'bars'; // Default mode
+        let isEngineInitialized = false;
+        
+        // Data Buffers for Smoothing Physics
+        let bufferLength;
+        let dataArray;
+        let smoothedArray;
+        let peaksArray;
+        let velocities;
+
+        // Canvas Setup
+        const canvas = document.getElementById('visualizer-canvas');
+        const ctx = canvas.getContext('2d');
+        const orbWrapper = document.getElementById('orb-wrapper');
+        
+        // UI Elements
+        const audioElement = document.getElementById('audio-engine');
+        const btnPower = document.getElementById('btn-power');
+        const statusText = document.getElementById('stream-status');
+        const modeNodes = document.querySelectorAll('.arc-node');
+        const channelBtns = document.querySelectorAll('.channel-btn');
+
+        // Current Stream URL (Default to 93.3)
+        let currentStreamUrl = channelBtns[0].dataset.url;
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        function initAudioEngine() {
+            if (isEngineInitialized) return;
+            
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            audioCtx = new AudioContext();
+            
+            analyser = audioCtx.createAnalyser();
+            analyser.fftSize = 512; 
+            analyser.smoothingTimeConstant = 0.5; // Native smoothing mixed with custom physics
+            
+            bufferLength = analyser.frequencyBinCount;
+            dataArray = new Uint8Array(bufferLength);
+            
+            smoothedArray = new Float32Array(bufferLength);
+            peaksArray = new Float32Array(bufferLength);
+            velocities = new Float32Array(bufferLength);
+
+            gainNode = audioCtx.createGain();
+            gainNode.gain.value = 1.0;
+
+            loadStream(currentStreamUrl);
+            isEngineInitialized = true;
+        }
+
+        function loadStream(url) {
+            if (hls) {
+                hls.destroy();
+            }
+
+            if (Hls.isSupported()) {
+                hls = new Hls({ lowLatencyMode: true });
+                hls.loadSource(url);
+                hls.attachMedia(audioElement);
+                hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                    connectMediaElement();
+                    if (isPlaying) audioElement.play();
+                });
+            } else if (audioElement.canPlayType('application/vnd.apple.mpegurl')) {
+                audioElement.src = url;
+                audioElement.addEventListener('loadedmetadata', () => {
+                    connectMediaElement();
+                    if (isPlaying) audioElement.play();
+                });
+            }
+        }
+
+        function connectMediaElement() {
+            if (!sourceNode && audioCtx) {
+                sourceNode = audioCtx.createMediaElementSource(audioElement);
+                sourceNode.connect(gainNode);
+                gainNode.connect(analyser);
+                analyser.connect(audioCtx.destination);
+            }
+        }
+
+        async function togglePlayback() {
+            if (!isEngineInitialized) {
+                initAudioEngine();
+            }
+
+            if (audioCtx.state === 'suspended') {
+                await audioCtx.resume();
+            }
+
+            if (isPlaying) {
+                audioElement.pause();
+                setPlayingState(false);
+            } else {
+                try {
+                    await audioElement.play();
+                    setPlayingState(true);
+                } catch (e) {
+                    console.error("Playback failed:", e);
+                    statusText.textContent = "Playback Blocked. Tap again.";
+                }
+            }
+        }
+
+        function setPlayingState(state) {
+            isPlaying = state;
+            const activeChannelName = document.querySelector('.channel-btn.active').textContent.trim();
+            if (state) {
+                btnPower.classList.add('is-playing');
+                statusText.textContent = `Live: ${activeChannelName}`;
+            } else {
+                btnPower.classList.remove('is-playing');
+                statusText.textContent = "Paused";
+            }
+        }
+
+        channelBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                channelBtns.forEach(b => b.classList.remove('active'));
+                const target = e.currentTarget;
+                target.classList.add('active');
+                
+                currentStreamUrl = target.dataset.url;
+                if (isEngineInitialized) {
+                    loadStream(currentStreamUrl);
+                }
+                
+                if (isPlaying) {
+                    statusText.textContent = `Buffering: ${target.textContent.trim()}...`;
+                }
+            });
+        });
+
+        function renderLoop() {
+            requestAnimationFrame(renderLoop);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (!analyser || !isPlaying) return;
+
+            analyser.getByteFrequencyData(dataArray);
+
+            // Dynamically track orb position for perfect visualizer alignment
+            const rect = orbWrapper.getBoundingClientRect();
+            const cx = rect.left + rect.width / 2;
+            const cy = rect.top + rect.height / 2;
+            const baseRadius = (rect.width / 2) + 12; // Start just outside the outer ring
+            
+            ctx.lineCap = 'round';
+            
+            if (currentMode === 'bars') drawRadialBars(cx, cy, baseRadius);
+            else if (currentMode === 'cline') drawSymmetricalCline(cx, cy);
+            else if (currentMode === 'particles') drawParticles(cx, cy, baseRadius);
+            else if (currentMode === 'pulse') drawPulseCore(cx, cy, baseRadius);
+            else if (currentMode === 'nebula') drawRadialBars(cx, cy, baseRadius, true);
+        }
+
+        function drawRadialBars(cx, cy, baseRadius, isNebula = false) {
+            const barCount = 100;
+            const step = Math.floor(bufferLength / barCount);
+            const maxBarLength = Math.min(canvas.width, canvas.height) * 0.35;
+            
+            for (let i = 0; i < barCount; i++) {
+                // Focus on lower/mid freqs for better beat response
+                const dataIndex = Math.floor(i * step * 0.7); 
+                const targetValue = dataArray[dataIndex] / 255;
+                
+                // Physics: Smooth interpolation
+                smoothedArray[i] += (targetValue - smoothedArray[i]) * 0.25; 
+                const value = smoothedArray[i];
+                
+                // Physics: Gravity peak caps
+                if (value >= peaksArray[i]) {
+                    peaksArray[i] = value;
+                    velocities[i] = 0; 
+                } else {
+                    velocities[i] += 0.0025; // Gravity
+                    peaksArray[i] -= velocities[i]; 
+                    if (peaksArray[i] < 0) peaksArray[i] = 0;
+                }
+
+                // Top center = -Math.PI/2
+                const angle = (i / barCount) * Math.PI * 2 - (Math.PI / 2); 
+                const barLength = value * maxBarLength;
+                
+                const x1 = cx + Math.cos(angle) * baseRadius;
+                const y1 = cy + Math.sin(angle) * baseRadius;
+                const x2 = cx + Math.cos(angle) * (baseRadius + barLength);
+                const y2 = cy + Math.sin(angle) * (baseRadius + barLength);
+
+                const gradient = ctx.createLinearGradient(x1, y1, x2, y2);
+                gradient.addColorStop(0, '#3b28cc');
+                gradient.addColorStop(0.5, '#9333ea');
+                gradient.addColorStop(1, '#d414c9');
+
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+                ctx.lineWidth = 3.5;
+                ctx.strokeStyle = isNebula ? 'rgba(212, 20, 201, 0.3)' : gradient;
+                
+                if (isNebula) {
+                    ctx.shadowBlur = 15;
+                    ctx.shadowColor = '#d414c9';
+                }
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+
+                // Draw falling cap
+                if (!isNebula && peaksArray[i] > 0.01) {
+                    const capRadius = baseRadius + (peaksArray[i] * maxBarLength) + 5;
+                    const cx2 = cx + Math.cos(angle) * capRadius;
+                    const cy2 = cy + Math.sin(angle) * capRadius;
+                    
+                    ctx.beginPath();
+                    ctx.arc(cx2, cy2, 2, 0, Math.PI * 2);
+                    ctx.fillStyle = '#ffffff';
+                    ctx.shadowBlur = 5;
+                    ctx.shadowColor = '#d414c9';
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                }
+            }
+        }
+
+        function drawSymmetricalCline(cx, cy) {
+            ctx.lineWidth = 3;
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = '#d414c9';
+            
+            const renderWidth = canvas.width * 0.8;
+            const startX = (canvas.width - renderWidth) / 2;
+            const sliceWidth = renderWidth / bufferLength;
+
+            const grad = ctx.createLinearGradient(startX, 0, startX + renderWidth, 0);
+            grad.addColorStop(0, 'rgba(59, 40, 204, 0)');
+            grad.addColorStop(0.2, '#3b28cc');
+            grad.addColorStop(0.5, '#d414c9');
+            grad.addColorStop(0.8, '#3b28cc');
+            grad.addColorStop(1, 'rgba(59, 40, 204, 0)');
+            ctx.strokeStyle = grad;
+
+            ctx.beginPath();
+            let x = startX;
+            for(let i = 0; i < bufferLength; i++) {
+                smoothedArray[i] += ((dataArray[i]/255) - smoothedArray[i]) * 0.2;
+                const v = smoothedArray[i] * 200; 
+                if(i === 0) ctx.moveTo(x, cy - v); else ctx.lineTo(x, cy - v);
+                x += sliceWidth;
+            }
+            ctx.stroke();
+
+            ctx.beginPath();
+            x = startX;
+            for(let i = 0; i < bufferLength; i++) {
+                const v = smoothedArray[i] * 200;
+                if(i === 0) ctx.moveTo(x, cy + v); else ctx.lineTo(x, cy + v);
+                x += sliceWidth;
+            }
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+        }
+
+        function drawParticles(cx, cy, baseRadius) {
+            const count = 90;
+            const step = Math.floor(bufferLength / count);
+            for(let i=0; i<count; i++) {
+                smoothedArray[i] += ((dataArray[i*step]/255) - smoothedArray[i]) * 0.15;
+                const val = smoothedArray[i];
+                if(val < 0.05) continue;
+                
+                const angle = (i/count) * Math.PI * 2 + (Date.now()*0.0003);
+                const distance = baseRadius + (val * 300);
+                
+                const px = cx + Math.cos(angle) * distance;
+                const py = cy + Math.sin(angle) * distance;
+                
+                ctx.beginPath();
+                ctx.arc(px, py, val * 5 + 1.5, 0, Math.PI*2);
+                ctx.fillStyle = i % 2 === 0 ? '#d414c9' : '#3b28cc';
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = ctx.fillStyle;
+                ctx.fill();
+            }
+            ctx.shadowBlur = 0;
+        }
+
+        function drawPulseCore(cx, cy, baseRadius) {
+            let sum = 0;
+            for(let i=0; i<30; i++) sum += dataArray[i];
+            const avgBass = (sum / 30) / 255;
+            
+            const radius = baseRadius + (avgBass * 150);
+            
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius, 0, Math.PI*2);
+            ctx.lineWidth = 2 + (avgBass * 20);
+            ctx.strokeStyle = `rgba(212, 20, 201, ${0.3 + avgBass})`;
+            ctx.shadowBlur = 50 * avgBass;
+            ctx.shadowColor = '#d414c9';
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+        }
+
+        // Add Event Listeners
+        btnPower.addEventListener('click', togglePlayback);
+
+        modeNodes.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                modeNodes.forEach(b => b.classList.remove('active'));
+                const target = e.currentTarget;
+                target.classList.add('active');
+                currentMode = target.dataset.mode;
+            });
+        });
+
+        // Start animation loop immediately
+        requestAnimationFrame(renderLoop);
+    </script>
+</body>
+</html>
